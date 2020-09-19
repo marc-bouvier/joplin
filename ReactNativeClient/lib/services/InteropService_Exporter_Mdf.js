@@ -56,22 +56,26 @@ class InteropService_Exporter_Mdf extends InteropService_Exporter_Base {
     }
 
 
-    async frontmatter_(item,tags=[]) {
+    async frontmatter_(item, tags = []) {
         const formattedCreationDate = moment(item.created_time).format("YYYY-MM-DD");
         const tagsList = tags.map(it => `"${it.title}"`).join(", ")
+        let firstLine = "";
+        if (item.body) {
+            firstLine = item.body.split('\n').shift();
+        }
         const frontmatter =
             `---
 title: "${item.title}"
 date: ${formattedCreationDate}
 tags: [${tagsList}]
-description: "Some resources to help building a blog like this one with Jekyll and GitHub pages."
+description: "${firstLine}"
 series: false
 ---
 
 `;
         // Description : first line (500 chars)
         // fetch tags
-return frontmatter;
+        return frontmatter;
     }
 
     async replaceResourceIdsByRelativePaths_(noteBody, relativePathToRoot) {
@@ -137,7 +141,7 @@ return frontmatter;
         }
     }
 
-    async processItem(ItemClass, item,additionalData={tags:[]}) {
+    async processItem(ItemClass, item, additionalData = { tags: [] }) {
         if ([BaseModel.TYPE_NOTE, BaseModel.TYPE_FOLDER].indexOf(item.type_) < 0) return;
 
         if (item.type_ === BaseModel.TYPE_FOLDER) {
@@ -152,18 +156,18 @@ return frontmatter;
             const notePaths = this.context() && this.context().notePaths ? this.context().notePaths : {};
             const noteFilePath = `${this.destDir_}/${notePaths[item.id]}`;
             let tags;
-            if(additionalData.tags){
-                tags=additionalData.tags
-            }else{
-                tags=[]
+            if (additionalData.tags) {
+                tags = additionalData.tags
+            } else {
+                tags = []
             }
-            const frontmatter = await this.frontmatter_(item,tags)
+            const frontmatter = await this.frontmatter_(item, tags)
             const noteBody = await this.replaceLinkedItemIdsByRelativePaths_(item);
-            const noteContent = frontmatter+noteBody;
+            const noteContent = frontmatter + noteBody;
             // const modNote = Object.assign({}, item, { body: noteBody });
             //       const noteContent = await Note.serializeForEdit(modNote);
             await shim.fsDriver().mkdir(dirname(noteFilePath));
-            await shim.fsDriver().writeFile(noteFilePath,noteContent, 'utf-8');
+            await shim.fsDriver().writeFile(noteFilePath, noteContent, 'utf-8');
         }
     }
 
