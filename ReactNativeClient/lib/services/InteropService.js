@@ -4,6 +4,7 @@ const Resource = require('lib/models/Resource.js');
 const Folder = require('lib/models/Folder.js');
 const NoteTag = require('lib/models/NoteTag.js');
 const Note = require('lib/models/Note.js');
+const Tag = require('lib/models/Tag.js');
 const ArrayUtils = require('lib/ArrayUtils');
 const { sprintf } = require('sprintf-js');
 const { shim } = require('lib/shim');
@@ -34,7 +35,7 @@ class InteropService {
 				sources: ['file', 'directory'],
 				isNoteArchive: false, // Tells whether the file can contain multiple notes (eg. Enex or Jex format)
 				description: _('Markdown'),
-			},
+            },
 			{
 				format: 'raw',
 				sources: ['directory'],
@@ -81,6 +82,11 @@ class InteropService {
 				format: 'md',
 				target: 'directory',
 				description: _('Markdown'),
+            },
+            {
+				format: 'mdf',
+				target: 'directory',
+				description: _('Markdown with frontmatter (for Jekill)'),
 			},
 			{
 				format: 'html',
@@ -267,10 +273,12 @@ class InteropService {
 		const result = { warnings: [] };
 		const itemsToExport = [];
 
-		const queueExportItem = (itemType, itemOrId) => {
+        // Add optional additional data to allow having tags along with note?
+		const queueExportItem = (itemType, itemOrId,additionalData={}) => {
 			itemsToExport.push({
 				type: itemType,
-				itemOrId: itemOrId,
+                itemOrId: itemOrId,
+                additionalData: additionalData
 			});
 		};
 
@@ -299,8 +307,9 @@ class InteropService {
 			for (let noteIndex = 0; noteIndex < noteIds.length; noteIndex++) {
 				const noteId = noteIds[noteIndex];
 				if (sourceNoteIds.length && sourceNoteIds.indexOf(noteId) < 0) continue;
-				const note = await Note.load(noteId);
-				await queueExportItem(BaseModel.TYPE_NOTE, note);
+                const note = await Note.load(noteId);
+                const tags = await Tag.tagsByNoteId(noteId);
+				await queueExportItem(BaseModel.TYPE_NOTE, note,{tags});
 				exportedNoteIds.push(noteId);
 
 				const rids = await Note.linkedResourceIds(note.body);
@@ -350,7 +359,7 @@ class InteropService {
 				const ItemClass = BaseItem.getClassByItemType(itemType);
 				const itemOrId = itemsToExport[i].itemOrId;
 				const item = typeof itemOrId === 'object' ? itemOrId : await ItemClass.load(itemOrId);
-
+                const additionalData = itemsToExport[i].additionalData;
 				if (!item) {
 					if (itemType === BaseModel.TYPE_RESOURCE) {
 						result.warnings.push(sprintf('A resource that does not exist is referenced in a note. The resource was skipped. Resource ID: %s', itemOrId));
@@ -370,7 +379,7 @@ class InteropService {
 						await exporter.processResource(item, resourcePath);
 					}
 
-					await exporter.processItem(ItemClass, item);
+					await exporter.processItem(ItemClass, item,additionalData);
 				} catch (error) {
 					console.error(error);
 					result.warnings.push(error.message);
